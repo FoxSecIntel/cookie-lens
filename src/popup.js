@@ -211,6 +211,7 @@ const els = {
 };
 
 let analysed = [];
+let currentTabHost = '';
 
 function safeHostFromUrl(url) {
   try {
@@ -298,6 +299,111 @@ function copyCookieName(name, btn) {
   });
 }
 
+function interpretSecurityAttributes(cookie) {
+  const attrs = [];
+
+  attrs.push(
+    cookie.secure
+      ? {
+          label: 'Secure',
+          value: 'Yes',
+          verdict: 'good',
+          tooltip: 'Only transmitted over HTTPS — protects against network interception.'
+        }
+      : {
+          label: 'Secure',
+          value: 'No',
+          verdict: 'risk',
+          tooltip: 'Sent over HTTP — visible to anyone on the same network.'
+        }
+  );
+
+  attrs.push(
+    cookie.httpOnly
+      ? {
+          label: 'HttpOnly',
+          value: 'Yes',
+          verdict: 'good',
+          tooltip: 'Inaccessible to JavaScript — reduces XSS attack risk.'
+        }
+      : {
+          label: 'HttpOnly',
+          value: 'No',
+          verdict: 'warn',
+          tooltip: 'Readable by JavaScript — vulnerable if XSS is present on this page.'
+        }
+  );
+
+  if (cookie.sameSite === 'strict') {
+    attrs.push({
+      label: 'SameSite',
+      value: 'Strict',
+      verdict: 'good',
+      tooltip: 'Never sent cross-site — strong CSRF protection.'
+    });
+  } else if (cookie.sameSite === 'lax') {
+    attrs.push({
+      label: 'SameSite',
+      value: 'Lax',
+      verdict: 'warn',
+      tooltip: 'Sent on top-level navigation — moderate CSRF protection.'
+    });
+  } else if (cookie.sameSite === 'no_restriction') {
+    attrs.push({
+      label: 'SameSite',
+      value: 'None',
+      verdict: 'risk',
+      tooltip: 'Sent on all cross-site requests — CSRF risk. Requires Secure flag to be valid.'
+    });
+
+    if (!cookie.secure) {
+      attrs.push({
+        label: 'Misconfigured',
+        value: 'SameSite=None without Secure',
+        verdict: 'risk',
+        tooltip: 'SameSite=None is invalid without the Secure flag. Browsers may reject this cookie.'
+      });
+    }
+  } else {
+    attrs.push({
+      label: 'SameSite',
+      value: String(cookie.sameSite || 'Unknown'),
+      verdict: 'neutral',
+      tooltip: 'SameSite policy not recognised for this cookie.'
+    });
+  }
+
+  const cookieDomainRaw = String(cookie.domain || '');
+  const cookieDomain = cookieDomainRaw.replace(/^\./, '').toLowerCase();
+  const host = String(currentTabHost || '').toLowerCase();
+  const isFirstParty = !!host && !!cookieDomain && (host === cookieDomain || host.endsWith(`.${cookieDomain}`));
+
+  attrs.push(
+    isFirstParty
+      ? {
+          label: 'Domain',
+          value: cookieDomainRaw || '(none)',
+          verdict: 'neutral',
+          tooltip: 'First-party cookie set by this site.'
+        }
+      : {
+          label: 'Domain',
+          value: cookieDomainRaw || '(none)',
+          verdict: 'warn',
+          tooltip: 'Third-party cookie — set by a different domain than the one you are visiting.'
+        }
+  );
+
+  attrs.push({
+    label: 'Path',
+    value: String(cookie.path || '/'),
+    verdict: 'neutral',
+    tooltip: 'Cookie is scoped to this path and below.'
+  });
+
+  return attrs;
+}
+
 function renderList(items) {
   els.cookieList.innerHTML = '';
 
@@ -329,6 +435,18 @@ function renderList(items) {
     meta.className = 'meta';
     meta.textContent = `${humanDuration(c.raw)} • Confidence: ${c.confidence}`;
 
+    const securityPills = document.createElement('div');
+    securityPills.className = 'security-pills';
+    const attributes = interpretSecurityAttributes(c.raw);
+    for (const attr of attributes) {
+      const pill = document.createElement('span');
+      pill.className = `pill pill--${attr.verdict}`;
+      const label = attr.verdict === 'risk' ? `⚠ ${attr.label}` : attr.label;
+      pill.textContent = `${label}: ${attr.value}`;
+      pill.title = attr.tooltip;
+      securityPills.appendChild(pill);
+    }
+
     const tag = document.createElement('span');
     tag.className = `tag ${c.category}`;
     tag.textContent = c.category;
@@ -336,6 +454,7 @@ function renderList(items) {
     text.appendChild(primary);
     text.appendChild(secondary);
     text.appendChild(meta);
+    text.appendChild(securityPills);
     text.appendChild(tag);
 
     const copyBtn = document.createElement('button');
@@ -381,6 +500,7 @@ function applyFilters() {
 async function analyseCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url) {
+    currentTabHost = '';
     els.siteHost.textContent = 'No active tab URL detected';
     analysed = [];
     computeHealth([]);
@@ -388,7 +508,8 @@ async function analyseCurrentTab() {
     return;
   }
 
-  els.siteHost.textContent = `Analysing: ${safeHostFromUrl(tab.url)}`;
+  currentTabHost = safeHostFromUrl(tab.url);
+  els.siteHost.textContent = `Analysing: ${currentTabHost}`;
 
   const cookies = await chrome.cookies.getAll({ url: tab.url });
 
