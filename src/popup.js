@@ -15,6 +15,76 @@ const COOKIE_DICTIONARY = [
     category: 'Tracking/Marketing'
   },
   {
+    match: /^_gcl_au$/i,
+    purpose: 'Google Ads conversion measurement.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^__utma$/i,
+    purpose: 'Legacy Google Analytics campaign and session tracking.',
+    category: 'Analytics'
+  },
+  {
+    match: /^__utmb$/i,
+    purpose: 'Legacy Google Analytics campaign and session tracking.',
+    category: 'Analytics'
+  },
+  {
+    match: /^__utmc$/i,
+    purpose: 'Legacy Google Analytics campaign and session tracking.',
+    category: 'Analytics'
+  },
+  {
+    match: /^__utmz$/i,
+    purpose: 'Legacy Google Analytics campaign and session tracking.',
+    category: 'Analytics'
+  },
+  {
+    match: /^_fbc$/i,
+    purpose: 'Stores Facebook click ID for ad attribution.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^datr$/i,
+    purpose: 'Facebook browser identification cookie.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^_uetsid$/i,
+    purpose: 'Microsoft UET, tracks conversions and visitors from Bing Ads.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^_uetvid$/i,
+    purpose: 'Microsoft UET, tracks conversions and visitors from Bing Ads.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^MUID$/i,
+    purpose: 'Microsoft user identifier shared across Microsoft properties.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^CookieConsent$/i,
+    purpose: 'Stores the user\'s cookie consent preferences.',
+    category: 'Strictly Necessary'
+  },
+  {
+    match: /^cookielawinfo-/i,
+    purpose: 'Records GDPR cookie consent choices.',
+    category: 'Strictly Necessary'
+  },
+  {
+    match: /^__cf_bm$/i,
+    purpose: 'Cloudflare bot management, short-lived token.',
+    category: 'Strictly Necessary'
+  },
+  {
+    match: /^cf_clearance$/i,
+    purpose: 'Cloudflare challenge clearance token.',
+    category: 'Strictly Necessary'
+  },
+  {
     match: /^__cfduid$/i,
     purpose: 'Helps protect the site with traffic filtering and bot defence.',
     category: 'Strictly Necessary'
@@ -22,6 +92,21 @@ const COOKIE_DICTIONARY = [
   {
     match: /^li_at$/i,
     purpose: 'Remembers your LinkedIn login session.',
+    category: 'Functional'
+  },
+  {
+    match: /^bcookie$/i,
+    purpose: 'LinkedIn browser and secure browser cookies for ad tracking.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^bscookie$/i,
+    purpose: 'LinkedIn browser and secure browser cookies for ad tracking.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^lidc$/i,
+    purpose: 'LinkedIn data centre routing.',
     category: 'Functional'
   },
   {
@@ -40,9 +125,49 @@ const COOKIE_DICTIONARY = [
     category: 'Strictly Necessary'
   },
   {
+    match: /^_hjSessionUser_/i,
+    purpose: 'Hotjar user sampling and session identification.',
+    category: 'Analytics'
+  },
+  {
+    match: /^_hjIncludedInSample$/i,
+    purpose: 'Hotjar user sampling and session identification.',
+    category: 'Analytics'
+  },
+  {
     match: /^_hj/i,
     purpose: 'Records interaction behaviour for usability analytics.',
     category: 'Analytics'
+  },
+  {
+    match: /^__stripe_mid$/i,
+    purpose: 'Stripe fraud prevention identifiers.',
+    category: 'Strictly Necessary'
+  },
+  {
+    match: /^__stripe_sid$/i,
+    purpose: 'Stripe fraud prevention identifiers.',
+    category: 'Strictly Necessary'
+  },
+  {
+    match: /^__hssc$/i,
+    purpose: 'HubSpot analytics and tracking cookies, extremely common on B2B sites.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^__hstc$/i,
+    purpose: 'HubSpot analytics and tracking cookies, extremely common on B2B sites.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^hubspotutk$/i,
+    purpose: 'HubSpot analytics and tracking cookies, extremely common on B2B sites.',
+    category: 'Tracking/Marketing'
+  },
+  {
+    match: /^intercom-/i,
+    purpose: 'Intercom support widget session and user identification.',
+    category: 'Functional'
   },
   {
     match: /^_tt_enable_cookie$/i,
@@ -60,10 +185,15 @@ const FALLBACK_RULES = [
   { match: /(sess|session|csrf|xsrf|auth|login)/i, category: 'Strictly Necessary', purpose: 'Supports secure session handling and account access.' },
   { match: /(lang|locale|prefs|theme|consent)/i, category: 'Functional', purpose: 'Stores your site preferences and experience settings.' },
   { match: /(ga|analytics|matomo|amplitude|mixpanel)/i, category: 'Analytics', purpose: 'Measures page usage and feature performance.' },
+  { match: /(retarget|remarketing|cid|click_id|gclid|msclkid)/i, category: 'Tracking/Marketing', purpose: 'Tracks ad click attribution and retargeting identifiers.' },
+  { match: /(hubspot|hssc|hstc|hubspotutk)/i, category: 'Tracking/Marketing', purpose: 'HubSpot marketing and analytics tracking.' },
+  { match: /(intercom)/i, category: 'Functional', purpose: 'Intercom customer support widget.' },
+  { match: /(utm)/i, category: 'Tracking/Marketing', purpose: 'Campaign tracking parameters embedded in cookie names.' },
+  { match: /(stripe|payment|checkout)/i, category: 'Strictly Necessary', purpose: 'Payment processing and fraud prevention.' },
   { match: /(ad|ads|track|pixel|fb|tt|marketing|campaign)/i, category: 'Tracking/Marketing', purpose: 'Tracks behaviour for advert measurement and targeting.' }
 ];
 
-const CATEGORY_ORDER = ['Strictly Necessary', 'Functional', 'Analytics', 'Tracking/Marketing'];
+const CATEGORY_ORDER = ['Strictly Necessary', 'Functional', 'Analytics', 'Tracking/Marketing', 'Unknown'];
 
 const els = {
   siteHost: document.getElementById('siteHost'),
@@ -105,7 +235,7 @@ function classifyCookie(name) {
 
   return {
     purpose: 'General storage cookie; purpose not clearly identified from local dictionary.',
-    category: 'Functional',
+    category: 'Unknown',
     confidence: 'Low (Unknown cookie)'
   };
 }
@@ -133,7 +263,8 @@ function computeHealth(items) {
     'Strictly Necessary': 0,
     'Functional': 0,
     'Analytics': 0,
-    'Tracking/Marketing': 0
+    'Tracking/Marketing': 0,
+    'Unknown': 0
   };
 
   items.forEach((c) => {
@@ -150,7 +281,7 @@ function computeHealth(items) {
   els.barAnalytics.style.width = `${analyticsShare}%`;
   els.barTracking.style.width = `${trackingShare}%`;
 
-  els.countsRow.textContent = `Necessary ${counts['Strictly Necessary']} • Functional ${counts['Functional']} • Analytics ${counts['Analytics']} • Tracking ${counts['Tracking/Marketing']}`;
+  els.countsRow.textContent = `Necessary ${counts['Strictly Necessary']} • Functional ${counts['Functional']} • Analytics ${counts['Analytics']} • Tracking ${counts['Tracking/Marketing']} • Unknown ${counts['Unknown']}`;
 }
 
 function copyCookieName(name, btn) {
