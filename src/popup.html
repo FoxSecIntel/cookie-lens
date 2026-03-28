@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cookie Lens</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="header card">
+      <div>
+        <h1>🍪 Cookie Lens</h1>
+        <p id="siteHost" class="muted">Analysing...</p>
+      </div>
+      <button id="refreshBtn" class="btn small" aria-label="Refresh">↻</button>
+    </header>
+
+    <section class="card score-card">
+      <div class="score-title">Privacy Health Score</div>
+      <div id="healthBreakdown" class="score-breakdown">No data yet</div>
+      <div class="bar-wrap" aria-hidden="true">
+        <div id="barFunctional" class="bar functional" style="width:0%"></div>
+        <div id="barAnalytics" class="bar analytics" style="width:0%"></div>
+        <div id="barTracking" class="bar tracking" style="width:0%"></div>
+      </div>
+      <div id="countsRow" class="counts-row muted">Necessary 0 • Functional 0 • Analytics 0 • Tracking 0</div>
+    </section>
+
+    <section class="card controls">
+      <input id="searchInput" type="search" placeholder="Search by name or category" aria-label="Search cookies" />
+      <select id="categoryFilter" aria-label="Filter category">
+        <option value="all">All categories</option>
+        <option value="Strictly Necessary">Strictly Necessary</option>
+        <option value="Functional">Functional</option>
+        <option value="Analytics">Analytics</option>
+        <option value="Tracking/Marketing">Tracking/Marketing</option>
+      </select>
+    </section>
+
+    <section class="card list-card">
+      <div class="list-head">
+        <span>Cookies</span>
+        <span id="resultCount" class="muted">0 shown</span>
+      </div>
+      <ul id="cookieList" class="cookie-list"></ul>
+      <div id="emptyState" class="empty hidden">No cookies match this filter.</div>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
