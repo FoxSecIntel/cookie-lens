@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Cookie Lens",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Translate technical cookies into plain English privacy explanations.",
-  "permissions": ["cookies", "activeTab", "tabs"],
+  "permissions": ["cookies", "activeTab", "tabs", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html",

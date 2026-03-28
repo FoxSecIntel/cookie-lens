@@ -202,6 +202,7 @@ const CATEGORY_ORDER = ['Strictly Necessary', 'Functional', 'Analytics', 'Tracki
 
 const els = {
   siteHost: document.getElementById('siteHost'),
+  exportBtn: document.getElementById('exportBtn'),
   refreshBtn: document.getElementById('refreshBtn'),
   healthBreakdown: document.getElementById('healthBreakdown'),
   barFunctional: document.getElementById('barFunctional'),
@@ -216,6 +217,7 @@ const els = {
 };
 
 let analysed = [];
+let currentHost = '';
 let currentTabHost = '';
 
 function safeHostFromUrl(url) {
@@ -550,6 +552,245 @@ function renderList(items) {
   }
 }
 
+function buildReportData() {
+  const generated = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+  const counts = {
+    'Strictly Necessary': 0,
+    'Functional': 0,
+    'Analytics': 0,
+    'Tracking/Marketing': 0,
+    'Unknown': 0
+  };
+
+  for (const item of analysed) {
+    counts[item.category] = (counts[item.category] || 0) + 1;
+  }
+
+  const pageRiskScore = Math.round(analysed.reduce((sum, c) => sum + c.score, 0) / (analysed.length || 1));
+  const pageRiskBand = getRiskBand(pageRiskScore);
+  const hostWithoutWww = String(currentHost || '').replace(/^www\./, '');
+
+  const cookies = analysed
+    .map((cookie) => ({
+      name: cookie.name,
+      grade: cookie.grade,
+      score: cookie.score,
+      scoreColour: cookie.scoreColour,
+      category: cookie.category,
+      purpose: cookie.purpose,
+      confidence: cookie.confidence,
+      duration: humanDuration(cookie.raw),
+      secure: cookie.raw.secure,
+      httpOnly: cookie.raw.httpOnly,
+      sameSite: cookie.raw.sameSite,
+      domain: cookie.raw.domain,
+      path: cookie.raw.path,
+      thirdParty: !String(cookie.raw.domain || '').includes(hostWithoutWww)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const trackingRatio = Math.round(((counts['Tracking/Marketing'] + counts['Unknown']) / (analysed.length || 1)) * 100);
+
+  return {
+    site: currentHost,
+    generated,
+    pageRiskScore,
+    pageRiskGrade: pageRiskBand.grade,
+    pageRiskLabel: pageRiskBand.label,
+    pageRiskColour: pageRiskBand.colour,
+    totalCookies: analysed.length,
+    counts,
+    trackingRatio,
+    cookies
+  };
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function generateHtmlReport(data) {
+  const verdicts = {
+    A: 'This site uses cookies responsibly.',
+    B: 'This site has a few cookies worth noting.',
+    C: 'This site has elevated cookie risk — review tracking cookies.',
+    D: 'This site has high cookie risk — several cookies are poorly configured.',
+    F: 'This site has critical cookie risk — immediate review recommended.'
+  };
+  const verdict = verdicts[data.pageRiskGrade] || '';
+
+  const categories = ['Strictly Necessary', 'Functional', 'Analytics', 'Tracking/Marketing', 'Unknown'];
+  const countCards = categories.map((cat) => {
+    const count = data.counts[cat] || 0;
+    return `<div class="count-card"><div class="count-label">${escapeHtml(cat)}</div><div class="count-value">${count}</div></div>`;
+  }).join('');
+
+  const barSegments = categories.map((cat) => {
+    const count = data.counts[cat] || 0;
+    const width = data.totalCookies ? ((count / data.totalCookies) * 100) : 0;
+    const colours = {
+      'Strictly Necessary': '#4caf82',
+      'Functional': '#4caf82',
+      'Analytics': '#e6a817',
+      'Tracking/Marketing': '#e05252',
+      'Unknown': '#8888aa'
+    };
+    return `<div class="hseg" style="width:${width}%;background:${colours[cat]}"></div>`;
+  }).join('');
+
+  const cookieCards = data.cookies.map((c) => {
+    const sameSiteDisplay = c.sameSite === 'no_restriction' ? 'None' : c.sameSite;
+    const secureDot = c.secure ? '🟢' : '🔴';
+    const httpOnlyDot = c.httpOnly ? '🟢' : '🟡';
+    const sameSiteDot = c.sameSite === 'strict' ? '🟢' : (c.sameSite === 'lax' ? '🟡' : (c.sameSite === 'no_restriction' ? '🔴' : '🟡'));
+    return `<article class="cookie-card" style="border-left:${c.score >= 7 ? `3px solid ${c.scoreColour}` : '3px solid transparent'}">
+      <div class="cookie-top">
+        <div class="risk" style="color:${c.scoreColour};border-color:${c.scoreColour};background:${hexToRgba(c.scoreColour, 0.15)}">
+          <div class="risk-grade">${escapeHtml(c.grade)}</div>
+          <div class="risk-score">${escapeHtml(c.score)}/10</div>
+        </div>
+        <div class="cookie-heading">
+          <strong>${escapeHtml(c.name)}</strong>
+          <span class="cat">${escapeHtml(c.category)}</span>
+        </div>
+      </div>
+      <div class="purpose">${escapeHtml(c.purpose)}</div>
+      <div class="attrs">
+        <span>${secureDot} Secure: ${c.secure ? 'Yes' : 'No'}</span>
+        <span>${httpOnlyDot} HttpOnly: ${c.httpOnly ? 'Yes' : 'No'}</span>
+        <span>${sameSiteDot} SameSite: ${escapeHtml(String(sameSiteDisplay || 'Unknown'))}</span>
+        <span>Domain: ${escapeHtml(String(c.domain || '(none)'))}</span>
+        <span>Path: ${escapeHtml(String(c.path || '/'))}</span>
+      </div>
+      <div class="meta">Confidence: ${escapeHtml(c.confidence)} • Expiry: ${escapeHtml(c.duration)}</div>
+    </article>`;
+  }).join('');
+
+  const warningLine = data.trackingRatio >= 25
+    ? `<div class="warn">⚠ ${data.trackingRatio}% of cookies are Tracking or Unknown</div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cookie Lens Report</title>
+  <style>
+    body{background:#0f0f17;color:#e8e8f0;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    .wrap{max-width:760px;margin:0 auto;padding:2rem}
+    .muted{color:#9ca3af}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+    h1{margin:0 0 .5rem 0;font-size:2rem}
+    .grade{min-width:86px;height:86px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:700;border:1px solid}
+    .verdict{margin:.75rem 0 0 0}
+    .summary{margin-top:1rem;padding:1rem;border:1px solid #2b2b3a;border-radius:12px;background:#141422}
+    .counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem}
+    .count-card{background:#1a1a28;border:1px solid #2d2d3d;border-radius:10px;padding:.6rem}
+    .count-label{font-size:.72rem;color:#a1a1b8}
+    .count-value{font-size:1.1rem;font-weight:700}
+    .warn{margin-top:.75rem;color:#e6a817}
+    .health{margin-top:.75rem;display:flex;height:10px;border-radius:999px;overflow:hidden;background:#232337;border:1px solid #2e2e44}
+    .cookies{margin-top:1rem;display:grid;gap:.6rem}
+    .cookie-card{background:#151524;border:1px solid #2b2b3a;border-radius:10px;padding:.75rem}
+    .cookie-top{display:flex;align-items:center;gap:.75rem}
+    .risk{width:44px;height:44px;border-radius:8px;border:1px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+    .risk-grade{font-size:16px;font-weight:600;line-height:1}
+    .risk-score{font-size:10px;margin-top:2px;opacity:.85}
+    .cookie-heading{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+    .cat{font-size:.75rem;padding:.1rem .45rem;border:1px solid #3a3a4f;border-radius:999px;color:#c6c6db}
+    .purpose{margin-top:.45rem}
+    .attrs{margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.6rem;font-size:.85rem}
+    .meta{margin-top:.45rem;color:#9ca3af;font-size:.82rem}
+    .footer{margin-top:1rem;color:#a5a5bd;font-size:.9rem}
+    .actions{margin-top:1rem;display:flex;gap:.5rem}
+    button{background:#1f2937;color:#e8e8f0;border:1px solid #334155;border-radius:8px;padding:.45rem .75rem;cursor:pointer}
+    a{color:#8ab4ff}
+    @media print {.no-print{display:none!important}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <div>
+        <h1>🍪 Cookie Lens</h1>
+        <div class="muted">${escapeHtml(data.site)}</div>
+        <div class="muted">${escapeHtml(data.generated)}</div>
+      </div>
+      <div class="grade" style="color:${data.pageRiskColour};border-color:${data.pageRiskColour};background:${hexToRgba(data.pageRiskColour, 0.15)}">${escapeHtml(data.pageRiskGrade)}</div>
+    </header>
+    <p class="verdict">${escapeHtml(verdict)}</p>
+    <section class="summary">
+      <div class="counts">${countCards}</div>
+      ${warningLine}
+      <div class="health">${barSegments}</div>
+    </section>
+    <section class="cookies">${cookieCards}</section>
+    <footer class="footer">
+      <div>Generated by Cookie Lens Chrome Extension</div>
+      <div><a href="https://github.com/FoxSecIntel/cookie-lens" target="_blank" rel="noreferrer">https://github.com/FoxSecIntel/cookie-lens</a></div>
+      <div>This report is for informational purposes only.</div>
+    </footer>
+    <div class="actions no-print">
+      <button onclick="window.print()">Print / Save as PDF</button>
+      <button onclick="window.close()">Close</button>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function generateTextSummary(data) {
+  const lines = [];
+  lines.push(`Cookie Lens Report — ${data.site}`);
+  lines.push(`Generated: ${data.generated}`);
+  lines.push(`Page Risk: ${data.pageRiskGrade} (${data.pageRiskScore}/10) — ${data.pageRiskLabel}`);
+  lines.push(`Cookies: ${data.totalCookies} total`);
+  lines.push(`Necessary: ${data.counts['Strictly Necessary']} | Functional: ${data.counts['Functional']} | Analytics: ${data.counts['Analytics']} | Tracking: ${data.counts['Tracking/Marketing']} | Unknown: ${data.counts['Unknown']}`);
+  lines.push(`Tracking + Unknown: ${data.trackingRatio}%`);
+  lines.push('');
+  lines.push('Highest risk cookies (score 5 and above):');
+
+  const highRisk = data.cookies.filter((c) => c.score >= 5);
+  if (highRisk.length === 0) {
+    lines.push('No high-risk cookies detected.');
+  } else {
+    for (const c of highRisk) {
+      const sameSiteValue = c.sameSite === 'no_restriction' ? 'None' : c.sameSite;
+      lines.push(` [${c.grade} ${c.score}/10] ${c.name} — ${c.category} — Secure:${c.secure ? 'Yes' : 'No'}, HttpOnly:${c.httpOnly ? 'Yes' : 'No'}, SameSite:${sameSiteValue}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('Generated by Cookie Lens — https://github.com/FoxSecIntel/cookie-lens');
+  return lines.join('\n');
+}
+
+async function exportReport() {
+  const data = buildReportData();
+  const html = generateHtmlReport(data);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  chrome.tabs.create({ url });
+
+  const text = generateTextSummary(data);
+  await navigator.clipboard.writeText(text);
+
+  const btn = els.exportBtn;
+  const original = btn.textContent;
+  btn.textContent = '✓';
+  btn.title = 'Report opened — summary copied to clipboard';
+  setTimeout(() => {
+    btn.textContent = original;
+    btn.title = 'Export report';
+  }, 1500);
+}
+
 function applyFilters() {
   const query = (els.searchInput.value || '').toLowerCase().trim();
   const selectedCategory = els.categoryFilter.value;
@@ -581,6 +822,7 @@ function applyFilters() {
 async function analyseCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url) {
+    currentHost = '';
     currentTabHost = '';
     els.siteHost.textContent = 'No active tab URL detected';
     analysed = [];
@@ -589,7 +831,7 @@ async function analyseCurrentTab() {
     return;
   }
 
-  const currentHost = safeHostFromUrl(tab.url);
+  currentHost = safeHostFromUrl(tab.url);
   currentTabHost = currentHost;
   els.siteHost.textContent = `Analysing: ${currentTabHost}`;
 
@@ -615,6 +857,7 @@ async function analyseCurrentTab() {
   applyFilters();
 }
 
+els.exportBtn.addEventListener('click', exportReport);
 els.refreshBtn.addEventListener('click', analyseCurrentTab);
 els.searchInput.addEventListener('input', applyFilters);
 els.categoryFilter.addEventListener('change', applyFilters);
