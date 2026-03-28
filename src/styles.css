@@ -13,9 +13,16 @@
 
 * { box-sizing: border-box; }
 
+html,
+body {
+  width: 520px;
+  min-width: 520px;
+  max-width: 520px;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
-  width: 480px;
   background: var(--bg);
   color: var(--text);
   font-family: Inter, Segoe UI, Arial, sans-serif;
@@ -23,6 +30,9 @@ body {
 }
 
 .app {
+  width: 520px;
+  min-width: 520px;
+  box-sizing: border-box;
   display: grid;
   gap: 8px;
 }
