@@ -772,27 +772,29 @@ function generateTextSummary(data) {
 }
 
 async function exportReport() {
+  const btn = els.exportBtn;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+
   const data = buildReportData();
   const html = generateHtmlReport(data);
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
+  const url = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   const filename = `cookie-lens-${data.site.replace(/[^a-z0-9]/gi, '-')}-${Date.now()}.html`;
-  chrome.downloads.download({
+  chrome.runtime.sendMessage({
+    action: 'downloadReport',
     url: url,
-    filename: filename,
-    saveAs: false
+    filename: filename
   });
 
   const text = generateTextSummary(data);
   await navigator.clipboard.writeText(text);
 
-  const btn = els.exportBtn;
-  const original = btn.textContent;
   btn.textContent = '✓';
   btn.title = 'Report opened — summary copied to clipboard';
   setTimeout(() => {
-    btn.textContent = original;
+    btn.textContent = '⬇';
     btn.title = 'Export report';
+    btn.disabled = false;
   }, 1500);
 }
 
@@ -825,6 +827,9 @@ function applyFilters() {
 }
 
 async function analyseCurrentTab() {
+  els.refreshBtn.textContent = '⏳';
+  els.refreshBtn.disabled = true;
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url) {
     currentHost = '';
@@ -833,6 +838,8 @@ async function analyseCurrentTab() {
     analysed = [];
     computeHealth([]);
     applyFilters();
+    els.refreshBtn.textContent = '↺';
+    els.refreshBtn.disabled = false;
     return;
   }
 
@@ -860,6 +867,8 @@ async function analyseCurrentTab() {
 
   computeHealth(analysed);
   applyFilters();
+  els.refreshBtn.textContent = '↺';
+  els.refreshBtn.disabled = false;
 }
 
 els.exportBtn.addEventListener('click', exportReport);

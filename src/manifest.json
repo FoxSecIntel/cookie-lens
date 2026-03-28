@@ -5,6 +5,9 @@
   "description": "Translate technical cookies into plain English privacy explanations.",
   "permissions": ["cookies", "activeTab", "tabs", "clipboardWrite", "downloads"],
   "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Cookie Lens"

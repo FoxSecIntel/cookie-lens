@@ -15,7 +15,7 @@
 
 body {
   margin: 0;
-  width: 390px;
+  width: 480px;
   background: var(--bg);
   color: var(--text);
   font-family: Inter, Segoe UI, Arial, sans-serif;
@@ -66,6 +66,17 @@ h1 {
 .btn:hover { filter: brightness(1.1); }
 .btn:active { transform: scale(.96); }
 .btn.small { width: 34px; height: 30px; }
+
+#refreshBtn,
+#exportBtn {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+#refreshBtn:active,
+#exportBtn:active {
+  transform: scale(0.92);
+  opacity: 0.7;
+}
 
 .score-title {
   font-size: 12px;
