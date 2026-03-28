@@ -3,7 +3,7 @@
   "name": "Cookie Lens",
   "version": "1.0.5",
   "description": "Translate technical cookies into plain English privacy explanations.",
-  "permissions": ["cookies", "activeTab", "tabs", "clipboardWrite", "downloads"],
+  "permissions": ["cookies", "activeTab", "tabs", "clipboardWrite", "downloads", "alarms"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"

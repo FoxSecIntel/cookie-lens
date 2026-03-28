@@ -12,6 +12,20 @@ function updateBadgeForTab(tabId, url, count) {
   chrome.action.setBadgeBackgroundColor({ color: colour, tabId: tabId });
 }
 
+chrome.alarms.create('badgeRefresh', { periodInMinutes: 0.5 });
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'badgeRefresh') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.url) {
+        chrome.cookies.getAll({ url: tabs[0].url }, (cookies) => {
+          updateBadgeForTab(tabs[0].id, tabs[0].url, cookies?.length || 0);
+        });
+      }
+    });
+  }
+});
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]?.url) {

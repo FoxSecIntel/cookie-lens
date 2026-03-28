@@ -75,7 +75,12 @@ const COOKIE_DICTIONARY = [
     category: 'Strictly Necessary'
   },
   {
-    match: /^cookielawinfo-/i,
+    match: /^OptanonAlertBoxClosed$/i,
+    purpose: 'Records when you closed the OneTrust cookie notice.',
+    category: 'Strictly Necessary'
+  },
+  {
+    match: /^cookielawinfo/i,
     purpose: 'Records GDPR cookie consent choices.',
     category: 'Strictly Necessary'
   },
@@ -183,33 +188,7 @@ const COOKIE_DICTIONARY = [
     match: /^_ttp$/i,
     purpose: 'Tracks advert interactions across sessions for targeting.',
     category: 'Tracking/Marketing'
-  },
-  { match: /^OptanonConsent$/i, category: 'Strictly Necessary', purpose: 'Stores your cookie consent choices from the OneTrust consent banner.' },
-  { match: /^OptanonAlertBoxClosed$/i, category: 'Strictly Necessary', purpose: 'Records when you closed the OneTrust cookie notice.' },
-  { match: /^CookieConsent$/i, category: 'Strictly Necessary', purpose: 'Stores your cookie consent preferences.' },
-  { match: /^cookielawinfo/i, category: 'Strictly Necessary', purpose: 'Records GDPR cookie consent choices.' },
-  { match: /^__cf_bm$/i, category: 'Strictly Necessary', purpose: 'Cloudflare bot management token — short-lived.' },
-  { match: /^cf_clearance$/i, category: 'Strictly Necessary', purpose: 'Cloudflare challenge clearance token.' },
-  { match: /^__hssc$/i, category: 'Tracking/Marketing', purpose: 'HubSpot session tracking cookie.' },
-  { match: /^__hstc$/i, category: 'Tracking/Marketing', purpose: 'HubSpot long-term visitor tracking.' },
-  { match: /^hubspotutk$/i, category: 'Tracking/Marketing', purpose: 'HubSpot visitor identity tracking for forms.' },
-  { match: /^_gcl_au$/i, category: 'Tracking/Marketing', purpose: 'Google Ads conversion measurement.' },
-  { match: /^_uetsid$/i, category: 'Tracking/Marketing', purpose: 'Microsoft UET session tracking for Bing Ads.' },
-  { match: /^_uetvid$/i, category: 'Tracking/Marketing', purpose: 'Microsoft UET visitor ID for Bing retargeting.' },
-  { match: /^MUID$/i, category: 'Tracking/Marketing', purpose: 'Microsoft user identifier shared across Microsoft properties.' },
-  { match: /^_fbc$/i, category: 'Tracking/Marketing', purpose: 'Stores Facebook click ID for ad attribution.' },
-  { match: /^datr$/i, category: 'Tracking/Marketing', purpose: 'Facebook browser identification cookie.' },
-  { match: /^bcookie$/i, category: 'Tracking/Marketing', purpose: 'LinkedIn browser identifier for ad tracking.' },
-  { match: /^lidc$/i, category: 'Functional', purpose: 'LinkedIn data centre routing cookie.' },
-  { match: /^__stripe_mid$/i, category: 'Strictly Necessary', purpose: 'Stripe fraud prevention machine identifier.' },
-  { match: /^__stripe_sid$/i, category: 'Strictly Necessary', purpose: 'Stripe fraud prevention session identifier.' },
-  { match: /^intercom-/i, category: 'Functional', purpose: 'Intercom customer support widget session data.' },
-  { match: /^_hjSessionUser/i, category: 'Analytics', purpose: 'Hotjar persistent user identifier across sessions.' },
-  { match: /^_hjIncludedInSample/i, category: 'Analytics', purpose: 'Determines if user is included in Hotjar sampling.' },
-  { match: /^__utma$/i, category: 'Analytics', purpose: 'Legacy Google Analytics unique visitor tracking.' },
-  { match: /^__utmb$/i, category: 'Analytics', purpose: 'Legacy Google Analytics session tracking.' },
-  { match: /^__utmc$/i, category: 'Analytics', purpose: 'Legacy Google Analytics session end tracking.' },
-  { match: /^__utmz$/i, category: 'Analytics', purpose: 'Legacy Google Analytics campaign source tracking.' }
+  }
 ];
 
 const FALLBACK_RULES = [
@@ -350,11 +329,16 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function updateBadge(count) {
+function updateBadge(count, tabId) {
   const text = count > 0 ? String(count) : '';
-  const colour = count === 0 ? '#888888' : count <= 5 ? '#4caf82' : count <= 15 ? '#e6a817' : '#e05252';
-  chrome.action.setBadgeText({ text: text });
-  chrome.action.setBadgeBackgroundColor({ color: colour });
+  const colour = count === 0 ? '#888888'
+    : count <= 5 ? '#4caf82'
+    : count <= 15 ? '#e6a817'
+    : '#e05252';
+  const opts = tabId ? { text, tabId } : { text };
+  const colOpts = tabId ? { color: colour, tabId } : { color: colour };
+  chrome.action.setBadgeText(opts);
+  chrome.action.setBadgeBackgroundColor(colOpts);
 }
 
 function computeHealth(items) {
@@ -931,7 +915,7 @@ async function analyseCurrentTab() {
     analysed = [];
     computeHealth([]);
     applyFilters();
-    updateBadge(0);
+    updateBadge(0, null);
     els.refreshBtn.textContent = '↺';
     els.refreshBtn.disabled = false;
     return;
@@ -961,7 +945,7 @@ async function analyseCurrentTab() {
 
   computeHealth(analysed);
   applyFilters();
-  updateBadge(analysed.length);
+  updateBadge(analysed.length, tab.id);
   els.refreshBtn.textContent = '↺';
   els.refreshBtn.disabled = false;
 }
