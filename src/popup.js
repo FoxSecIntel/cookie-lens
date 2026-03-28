@@ -319,6 +319,13 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function updateBadge(count) {
+  const text = count > 0 ? String(count) : '';
+  const colour = count === 0 ? '#888888' : count <= 5 ? '#4caf82' : count <= 15 ? '#e6a817' : '#e05252';
+  chrome.action.setBadgeText({ text: text });
+  chrome.action.setBadgeBackgroundColor({ color: colour });
+}
+
 function computeHealth(items) {
   const counts = {
     'Strictly Necessary': 0,
@@ -886,6 +893,7 @@ async function analyseCurrentTab() {
     analysed = [];
     computeHealth([]);
     applyFilters();
+    updateBadge(0);
     els.refreshBtn.textContent = '↺';
     els.refreshBtn.disabled = false;
     return;
@@ -915,6 +923,7 @@ async function analyseCurrentTab() {
 
   computeHealth(analysed);
   applyFilters();
+  updateBadge(analysed.length);
   els.refreshBtn.textContent = '↺';
   els.refreshBtn.disabled = false;
 }

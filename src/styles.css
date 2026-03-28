@@ -15,9 +15,9 @@
 
 html,
 body {
-  width: 520px;
-  min-width: 520px;
-  max-width: 520px;
+  width: 600px;
+  min-width: 600px;
+  max-width: 600px;
   overflow-x: hidden;
 }
 
@@ -30,8 +30,8 @@ body {
 }
 
 .app {
-  width: 520px;
-  min-width: 520px;
+  width: 600px;
+  min-width: 600px;
   box-sizing: border-box;
   display: grid;
   gap: 8px;
