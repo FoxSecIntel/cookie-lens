@@ -194,7 +194,7 @@ const COOKIE_DICTIONARY = [
 const FALLBACK_RULES = [
   { match: /(sess|session|csrf|xsrf|auth|login)/i, category: 'Strictly Necessary', purpose: 'Supports secure session handling and account access.' },
   { match: /(lang|locale|prefs|theme|consent)/i, category: 'Functional', purpose: 'Stores your site preferences and experience settings.' },
-  { match: /(ga|analytics|matomo|amplitude|mixpanel)/i, category: 'Analytics', purpose: 'Measures page usage and feature performance.' },
+  { match: /(\bga\b|analytics|matomo|amplitude|mixpanel)/i, category: 'Analytics', purpose: 'Measures page usage and feature performance.' },
   { match: /(retarget|remarketing|cid|click_id|gclid|msclkid)/i, category: 'Tracking/Marketing', purpose: 'Tracks ad click attribution and retargeting identifiers.' },
   { match: /(hubspot|hssc|hstc|hubspotutk)/i, category: 'Tracking/Marketing', purpose: 'HubSpot marketing and analytics tracking.' },
   { match: /(intercom)/i, category: 'Functional', purpose: 'Intercom customer support widget.' },
@@ -229,7 +229,6 @@ const els = {
 
 let analysed = [];
 let currentHost = '';
-let currentTabHost = '';
 
 function safeHostFromUrl(url) {
   try {
@@ -297,27 +296,35 @@ function scoreCookie(item, currentHost) {
 
   let score = baseByCategory[item.category] ?? 4;
 
+  // Secure flag — high penalty, transmitting over HTTP is serious
   if (!cookie.secure) score += 2;
-  if (!cookie.httpOnly) score += 1;
+
+  // HttpOnly — only penalise tracking/unknown cookies lacking it
+  // Session/functional cookies not being HttpOnly is less concerning
+  if (!cookie.httpOnly && (item.category === 'Tracking/Marketing' || item.category === 'Unknown')) {
+    score += 1;
+  }
+
+  // SameSite — only penalise None (no_restriction), not Lax
+  // Lax is the correct browser default and should not be penalised
   if (cookie.sameSite === 'no_restriction') score += 2;
-  if (cookie.sameSite === 'lax') score += 1;
+
+  // Extra penalty for the dangerous combination: SameSite=None without Secure
   if (cookie.sameSite === 'no_restriction' && !cookie.secure) score += 1;
 
-  const cookieDomainRaw = String(cookie.domain || '');
-  const cookieDomain = cookieDomainRaw.replace(/^\./, '').toLowerCase();
-  const host = String(currentHost || '').toLowerCase();
-  const isFirstParty = !!host && !!cookieDomain && (host === cookieDomain || host.endsWith(`.${cookieDomain}`));
-  if (!isFirstParty) score += 1;
+  // Third-party domain — only penalise if it is a tracking or unknown cookie
+  // First-party checks: strip leading dot from cookie domain before comparing
+  const cookieDomain = String(cookie.domain || '').replace(/^\./, '').toLowerCase();
+  const host = String(currentHost || '').toLowerCase().replace(/^www\./, '');
+  const isFirstParty = !!host && !!cookieDomain && (host === cookieDomain || host.endsWith(`.${cookieDomain}`) || cookieDomain.endsWith(`.${host}`));
+  if (!isFirstParty && (item.category === 'Tracking/Marketing' || item.category === 'Unknown')) {
+    score += 1;
+  }
 
   score = Math.min(score, 10);
   const band = getRiskBand(score);
 
-  return {
-    score,
-    grade: band.grade,
-    label: band.label,
-    colour: band.colour
-  };
+  return { score, grade: band.grade, label: band.label, colour: band.colour };
 }
 
 function hexToRgba(hex, alpha) {
@@ -469,7 +476,7 @@ function interpretSecurityAttributes(cookie) {
 
   const cookieDomainRaw = String(cookie.domain || '');
   const cookieDomain = cookieDomainRaw.replace(/^\./, '').toLowerCase();
-  const host = String(currentTabHost || '').toLowerCase();
+  const host = String(currentHost || '').toLowerCase();
   const isFirstParty = !!host && !!cookieDomain && (host === cookieDomain || host.endsWith(`.${cookieDomain}`));
 
   attrs.push(
@@ -910,7 +917,6 @@ async function analyseCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url) {
     currentHost = '';
-    currentTabHost = '';
     els.siteHost.textContent = 'No active tab URL detected';
     analysed = [];
     computeHealth([]);
@@ -922,8 +928,7 @@ async function analyseCurrentTab() {
   }
 
   currentHost = safeHostFromUrl(tab.url);
-  currentTabHost = currentHost;
-  els.siteHost.textContent = `Analysing: ${currentTabHost}`;
+  els.siteHost.textContent = `Analysing: ${currentHost}`;
 
   const cookies = await chrome.cookies.getAll({ url: tab.url });
 
