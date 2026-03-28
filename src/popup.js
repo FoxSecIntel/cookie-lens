@@ -183,7 +183,33 @@ const COOKIE_DICTIONARY = [
     match: /^_ttp$/i,
     purpose: 'Tracks advert interactions across sessions for targeting.',
     category: 'Tracking/Marketing'
-  }
+  },
+  { match: /^OptanonConsent$/i, category: 'Strictly Necessary', purpose: 'Stores your cookie consent choices from the OneTrust consent banner.' },
+  { match: /^OptanonAlertBoxClosed$/i, category: 'Strictly Necessary', purpose: 'Records when you closed the OneTrust cookie notice.' },
+  { match: /^CookieConsent$/i, category: 'Strictly Necessary', purpose: 'Stores your cookie consent preferences.' },
+  { match: /^cookielawinfo/i, category: 'Strictly Necessary', purpose: 'Records GDPR cookie consent choices.' },
+  { match: /^__cf_bm$/i, category: 'Strictly Necessary', purpose: 'Cloudflare bot management token — short-lived.' },
+  { match: /^cf_clearance$/i, category: 'Strictly Necessary', purpose: 'Cloudflare challenge clearance token.' },
+  { match: /^__hssc$/i, category: 'Tracking/Marketing', purpose: 'HubSpot session tracking cookie.' },
+  { match: /^__hstc$/i, category: 'Tracking/Marketing', purpose: 'HubSpot long-term visitor tracking.' },
+  { match: /^hubspotutk$/i, category: 'Tracking/Marketing', purpose: 'HubSpot visitor identity tracking for forms.' },
+  { match: /^_gcl_au$/i, category: 'Tracking/Marketing', purpose: 'Google Ads conversion measurement.' },
+  { match: /^_uetsid$/i, category: 'Tracking/Marketing', purpose: 'Microsoft UET session tracking for Bing Ads.' },
+  { match: /^_uetvid$/i, category: 'Tracking/Marketing', purpose: 'Microsoft UET visitor ID for Bing retargeting.' },
+  { match: /^MUID$/i, category: 'Tracking/Marketing', purpose: 'Microsoft user identifier shared across Microsoft properties.' },
+  { match: /^_fbc$/i, category: 'Tracking/Marketing', purpose: 'Stores Facebook click ID for ad attribution.' },
+  { match: /^datr$/i, category: 'Tracking/Marketing', purpose: 'Facebook browser identification cookie.' },
+  { match: /^bcookie$/i, category: 'Tracking/Marketing', purpose: 'LinkedIn browser identifier for ad tracking.' },
+  { match: /^lidc$/i, category: 'Functional', purpose: 'LinkedIn data centre routing cookie.' },
+  { match: /^__stripe_mid$/i, category: 'Strictly Necessary', purpose: 'Stripe fraud prevention machine identifier.' },
+  { match: /^__stripe_sid$/i, category: 'Strictly Necessary', purpose: 'Stripe fraud prevention session identifier.' },
+  { match: /^intercom-/i, category: 'Functional', purpose: 'Intercom customer support widget session data.' },
+  { match: /^_hjSessionUser/i, category: 'Analytics', purpose: 'Hotjar persistent user identifier across sessions.' },
+  { match: /^_hjIncludedInSample/i, category: 'Analytics', purpose: 'Determines if user is included in Hotjar sampling.' },
+  { match: /^__utma$/i, category: 'Analytics', purpose: 'Legacy Google Analytics unique visitor tracking.' },
+  { match: /^__utmb$/i, category: 'Analytics', purpose: 'Legacy Google Analytics session tracking.' },
+  { match: /^__utmc$/i, category: 'Analytics', purpose: 'Legacy Google Analytics session end tracking.' },
+  { match: /^__utmz$/i, category: 'Analytics', purpose: 'Legacy Google Analytics campaign source tracking.' }
 ];
 
 const FALLBACK_RULES = [
@@ -195,7 +221,12 @@ const FALLBACK_RULES = [
   { match: /(intercom)/i, category: 'Functional', purpose: 'Intercom customer support widget.' },
   { match: /(utm)/i, category: 'Tracking/Marketing', purpose: 'Campaign tracking parameters embedded in cookie names.' },
   { match: /(stripe|payment|checkout)/i, category: 'Strictly Necessary', purpose: 'Payment processing and fraud prevention.' },
-  { match: /(ad|ads|track|pixel|fb|tt|marketing|campaign)/i, category: 'Tracking/Marketing', purpose: 'Tracks behaviour for advert measurement and targeting.' }
+  { match: /(ad|ads|track|pixel|fb|tt|marketing|campaign)/i, category: 'Tracking/Marketing', purpose: 'Tracks behaviour for advert measurement and targeting.' },
+  { match: /^(euconsent|cmapi|usprivacy|ccpa|gdpr)/i, category: 'Strictly Necessary', purpose: 'Stores regional privacy consent and compliance preferences.' },
+  { match: /^(gads|gac|gcl)/i, category: 'Tracking/Marketing', purpose: 'Google advertising and conversion tracking.' },
+  { match: /^(ajs|amplitude|heap|mixpanel)/i, category: 'Analytics', purpose: 'Product analytics and user behaviour measurement.' },
+  { match: /^(intercom|drift|crisp|zendesk|freshchat)/i, category: 'Functional', purpose: 'Customer support and live chat widget.' },
+  { match: /^(stripe|braintree|paypal|checkout)/i, category: 'Strictly Necessary', purpose: 'Payment processing and fraud prevention.' }
 ];
 
 const CATEGORY_ORDER = ['Strictly Necessary', 'Functional', 'Analytics', 'Tracking/Marketing', 'Unknown'];
@@ -406,7 +437,14 @@ function interpretSecurityAttributes(cookie) {
         }
   );
 
-  if (cookie.sameSite === 'strict') {
+  if (!cookie.sameSite || cookie.sameSite === 'unspecified') {
+    attrs.push({
+      label: 'SameSite',
+      value: 'Not set',
+      verdict: 'warn',
+      tooltip: 'SameSite attribute is not set — browser will apply default Lax behaviour but this varies across versions.'
+    });
+  } else if (cookie.sameSite === 'strict') {
     attrs.push({
       label: 'SameSite',
       value: 'Strict',
