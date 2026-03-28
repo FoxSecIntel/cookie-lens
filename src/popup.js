@@ -70,6 +70,11 @@ const COOKIE_DICTIONARY = [
     category: 'Strictly Necessary'
   },
   {
+    match: /^OptanonConsent$/i,
+    purpose: 'Stores your cookie consent choices made via the OneTrust consent banner.',
+    category: 'Strictly Necessary'
+  },
+  {
     match: /^cookielawinfo-/i,
     purpose: 'Records GDPR cookie consent choices.',
     category: 'Strictly Necessary'
@@ -259,6 +264,58 @@ function humanDuration(cookie) {
   return `Ends in ${mins} minute${mins === 1 ? '' : 's'}`;
 }
 
+function getRiskBand(score) {
+  if (score <= 2) return { grade: 'A', label: 'Low risk', colour: '#4caf82' };
+  if (score <= 4) return { grade: 'B', label: 'Moderate', colour: '#7bc67e' };
+  if (score <= 6) return { grade: 'C', label: 'Elevated', colour: '#e6a817' };
+  if (score <= 8) return { grade: 'D', label: 'High risk', colour: '#e05252' };
+  return { grade: 'F', label: 'Critical', colour: '#b71c1c' };
+}
+
+function scoreCookie(item, currentHost) {
+  const cookie = item.raw;
+  const baseByCategory = {
+    'Strictly Necessary': 0,
+    'Functional': 1,
+    'Analytics': 3,
+    'Tracking/Marketing': 5,
+    'Unknown': 4
+  };
+
+  let score = baseByCategory[item.category] ?? 4;
+
+  if (!cookie.secure) score += 2;
+  if (!cookie.httpOnly) score += 1;
+  if (cookie.sameSite === 'no_restriction') score += 2;
+  if (cookie.sameSite === 'lax') score += 1;
+  if (cookie.sameSite === 'no_restriction' && !cookie.secure) score += 1;
+
+  const cookieDomainRaw = String(cookie.domain || '');
+  const cookieDomain = cookieDomainRaw.replace(/^\./, '').toLowerCase();
+  const host = String(currentHost || '').toLowerCase();
+  const isFirstParty = !!host && !!cookieDomain && (host === cookieDomain || host.endsWith(`.${cookieDomain}`));
+  if (!isFirstParty) score += 1;
+
+  score = Math.min(score, 10);
+  const band = getRiskBand(score);
+
+  return {
+    score,
+    grade: band.grade,
+    label: band.label,
+    colour: band.colour
+  };
+}
+
+function hexToRgba(hex, alpha) {
+  const cleaned = String(hex || '').replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(cleaned)) return `rgba(255,255,255,${alpha})`;
+  const r = parseInt(cleaned.slice(0, 2), 16);
+  const g = parseInt(cleaned.slice(2, 4), 16);
+  const b = parseInt(cleaned.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function computeHealth(items) {
   const counts = {
     'Strictly Necessary': 0,
@@ -277,7 +334,12 @@ function computeHealth(items) {
   const analyticsShare = Math.round((counts['Analytics'] / total) * 100);
   const trackingShare = Math.round((counts['Tracking/Marketing'] / total) * 100);
 
-  els.healthBreakdown.textContent = `${functionalShare}% Functional • ${trackingShare}% Tracking`;
+  const avgScore = items.length
+    ? Math.round(items.reduce((sum, c) => sum + (Number(c.score) || 0), 0) / items.length)
+    : 0;
+  const pageBand = getRiskBand(avgScore);
+
+  els.healthBreakdown.innerHTML = `${functionalShare}% Functional • ${trackingShare}% Tracking • Page risk: <span style="color: ${pageBand.colour}">${pageBand.grade} (${avgScore}/10)</span>`;
   els.barFunctional.style.width = `${functionalShare}%`;
   els.barAnalytics.style.width = `${analyticsShare}%`;
   els.barTracking.style.width = `${trackingShare}%`;
@@ -420,6 +482,24 @@ function renderList(items) {
     const li = document.createElement('li');
     li.className = 'cookie-row';
 
+    const riskBadge = document.createElement('div');
+    riskBadge.className = 'risk-badge';
+    riskBadge.style.borderColor = c.scoreColour;
+    riskBadge.style.color = c.scoreColour;
+    riskBadge.style.background = hexToRgba(c.scoreColour, 0.15);
+    riskBadge.title = c.label;
+
+    const riskGrade = document.createElement('div');
+    riskGrade.className = 'risk-badge__grade';
+    riskGrade.textContent = c.grade;
+
+    const riskScore = document.createElement('div');
+    riskScore.className = 'risk-badge__score';
+    riskScore.textContent = `${c.score}/10`;
+
+    riskBadge.appendChild(riskGrade);
+    riskBadge.appendChild(riskScore);
+
     const text = document.createElement('div');
     text.className = 'cookie-text';
 
@@ -463,6 +543,7 @@ function renderList(items) {
     copyBtn.title = 'Copy Name';
     copyBtn.addEventListener('click', () => copyCookieName(c.name, copyBtn));
 
+    li.appendChild(riskBadge);
     li.appendChild(text);
     li.appendChild(copyBtn);
     els.cookieList.appendChild(li);
@@ -508,18 +589,24 @@ async function analyseCurrentTab() {
     return;
   }
 
-  currentTabHost = safeHostFromUrl(tab.url);
+  const currentHost = safeHostFromUrl(tab.url);
+  currentTabHost = currentHost;
   els.siteHost.textContent = `Analysing: ${currentTabHost}`;
 
   const cookies = await chrome.cookies.getAll({ url: tab.url });
 
   analysed = cookies.map((cookie) => {
     const classif = classifyCookie(cookie.name);
+    const scoring = scoreCookie({ category: classif.category, raw: cookie }, currentHost);
     return {
       name: cookie.name,
       purpose: classif.purpose,
       category: classif.category,
       confidence: classif.confidence,
+      score: scoring.score,
+      grade: scoring.grade,
+      label: scoring.label,
+      scoreColour: scoring.colour,
       raw: cookie
     };
   });
