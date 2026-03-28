@@ -776,7 +776,12 @@ async function exportReport() {
   const html = generateHtmlReport(data);
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-  chrome.tabs.create({ url });
+  const filename = `cookie-lens-${data.site.replace(/[^a-z0-9]/gi, '-')}-${Date.now()}.html`;
+  chrome.downloads.download({
+    url: url,
+    filename: filename,
+    saveAs: false
+  });
 
   const text = generateTextSummary(data);
   await navigator.clipboard.writeText(text);
